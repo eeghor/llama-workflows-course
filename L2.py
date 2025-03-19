@@ -1,19 +1,20 @@
-from IPython.display import display, HTML
-from helper import extract_html_content
 import random
 import asyncio
 from helper import get_openai_api_key
-from llama_index.core.workflow import StartEvent, StopEvent, Workflow, step, Context
-from llama_index.core.workflow import Event
+from llama_index.core.workflow import (
+    StartEvent,
+    StopEvent,
+    Event,
+    Workflow,
+    step,
+    Context,
+)
 from llama_index.llms.openai import OpenAI
 
 api_key = get_openai_api_key()
 
-
-async def main():
-    w = MyWorkflow(timeout=10, verbose=False)
-    result = await w.run()
-    print(result)
+# Events are simple data classes that pass information
+# between workflow steps
 
 
 class FirstEvent(Event):
@@ -86,6 +87,11 @@ class StepCCompleteEvent(Event):
 
 
 class MyWorkflow(Workflow):
+    """
+    Define the sequence of steps and logic for the workflow.
+    """
+
+    # Steps: methods decorated with @step that process events and emit new events
     @step
     async def step_one(self, ctx: Context, ev: StartEvent) -> FirstEvent:
         ctx.write_event_to_stream(ProgressEvent(msg="Step one is happening"))
@@ -127,14 +133,14 @@ class BranchWorkflow(Workflow):
         return BranchA2Event(payload=ev.payload)
 
     @step
-    async def step_b1(self, ev: BranchB1Event) -> BranchB2Event:
-        print(ev.payload)
-        return BranchB2Event(payload=ev.payload)
-
-    @step
     async def step_a2(self, ev: BranchA2Event) -> StopEvent:
         print(ev.payload)
         return StopEvent(result="Branch A complete.")
+
+    @step
+    async def step_b1(self, ev: BranchB1Event) -> BranchB2Event:
+        print(ev.payload)
+        return BranchB2Event(payload=ev.payload)
 
     @step
     async def step_b2(self, ev: BranchB2Event) -> StopEvent:
@@ -200,6 +206,25 @@ class ConcurrentFlow(Workflow):
         # do something with all 3 results together
         print("All events received: ", events)
         return StopEvent(result="Done")
+
+
+async def main():
+    w = MyWorkflow(timeout=10, verbose=False)
+    result = await w.run()
+    print(result)
+
+    # and now runs the remaining workflows
+    w = BranchWorkflow(timeout=10, verbose=False)
+    result = await w.run()
+    print(result)
+
+    w = ParallelFlow(timeout=10, verbose=False)
+    result = await w.run()
+    print(result)
+
+    w = ConcurrentFlow(timeout=10, verbose=False)
+    result = await w.run()
+    print(result)
 
 
 if __name__ == "__main__":
