@@ -1,5 +1,7 @@
 import random
 import asyncio
+import nest_asyncio
+
 from llama_index.core.workflow import (
     StartEvent,
     StopEvent,
@@ -8,13 +10,19 @@ from llama_index.core.workflow import (
     step,
     Context,
 )
+from llama_parse import LlamaParse
 import os
 from llama_index.llms.anthropic import Anthropic
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.core import VectorStoreIndex
+
 from dotenv import load_dotenv
 
 load_dotenv()
+nest_asyncio.apply()
 
 api_key = os.getenv("ANTHROPIC_API_KEY")
+llama_cloud_api_key = os.getenv("LLAMA_CLOUD_API_KEY")
 
 
 # Events are simple data classes that pass information
@@ -126,15 +134,15 @@ class BranchWorkflow(Workflow):
     async def start(self, ev: StartEvent) -> BranchA1Event | BranchB1Event:
         if random.randint(0, 1) == 0:
             print("Go to branch A")
-            return BranchA1Event(payload="Branch A")
+            return BranchA1Event(payload="Branch A - Event 1")
         else:
             print("Go to branch B")
-            return BranchB1Event(payload="Branch B")
+            return BranchB1Event(payload="Branch B - Event 1")
 
     @step
     async def step_a1(self, ev: BranchA1Event) -> BranchA2Event:
         print(ev.payload)
-        return BranchA2Event(payload=ev.payload)
+        return BranchA2Event(payload="Branch A - Event 2")
 
     @step
     async def step_a2(self, ev: BranchA2Event) -> StopEvent:
@@ -144,7 +152,7 @@ class BranchWorkflow(Workflow):
     @step
     async def step_b1(self, ev: BranchB1Event) -> BranchB2Event:
         print(ev.payload)
-        return BranchB2Event(payload=ev.payload)
+        return BranchB2Event(payload="Branch B - Event 2")
 
     @step
     async def step_b2(self, ev: BranchB2Event) -> StopEvent:
@@ -233,3 +241,14 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+    documents = LlamaParse(
+        api_key=llama_cloud_api_key,
+        base_url=os.getenv("LLAMA_CLOUD_BASE_URL"),
+        result_type="markdown",
+        content_guideline_instruction="This is a resume, gather related facts together and format it as bullet points with headers",
+    ).load_data(
+        "data/fake_resume.pdf",
+    )
+
+    print(documents[2].text)
