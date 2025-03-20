@@ -1,6 +1,5 @@
 import random
 import asyncio
-from helper import get_openai_api_key
 from llama_index.core.workflow import (
     StartEvent,
     StopEvent,
@@ -9,9 +8,14 @@ from llama_index.core.workflow import (
     step,
     Context,
 )
-from llama_index.llms.openai import OpenAI
+import os
+from llama_index.llms.anthropic import Anthropic
+from dotenv import load_dotenv
 
-api_key = get_openai_api_key()
+load_dotenv()
+
+api_key = os.getenv("ANTHROPIC_API_KEY")
+
 
 # Events are simple data classes that pass information
 # between workflow steps
@@ -99,7 +103,7 @@ class MyWorkflow(Workflow):
 
     @step
     async def step_two(self, ctx: Context, ev: FirstEvent) -> SecondEvent:
-        llm = OpenAI(model="gpt-4o-mini", api_key=api_key)
+        llm = Anthropic(model="claude-3-7-sonnet-latest", api_key=api_key)
         generator = await llm.astream_complete(
             "Please give me the first 50 words of Moby Dick, a book in the public domain."
         )
