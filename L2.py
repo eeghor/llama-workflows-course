@@ -252,3 +252,21 @@ if __name__ == "__main__":
     )
 
     print(documents[2].text)
+
+    from llama_index.embeddings.openai import OpenAIEmbedding
+    from llama_index.core import VectorStoreIndex
+
+    index = VectorStoreIndex.from_documents(
+        documents,
+        embed_model=OpenAIEmbedding(
+            model_name="text-embedding-3-small", api_key=os.getenv("OPEN_AI_API_KEY")
+        ),
+    )
+    query_engine = index.as_query_engine(
+        llm=Anthropic(model="claude-3-7-sonnet-latest", api_key=api_key),
+        similarity_top_k=5,
+    )
+    response = query_engine.query(
+        "What is this person's name and what was their most recent job?"
+    )
+    print(response)
