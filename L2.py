@@ -23,6 +23,8 @@ from llama_index.core import VectorStoreIndex
 from dotenv import load_dotenv
 
 load_dotenv()
+# we need to be able to run
+# asyncio operations nested within other asyncio contexts
 nest_asyncio.apply()
 
 api_key = {
@@ -31,16 +33,14 @@ api_key = {
     "llama_cloud": os.getenv("LLAMA_CLOUD_API_KEY"),
 }
 
-print(f"OpenAI API Key loaded: {'Yes' if api_key['openai'] else 'No'}")
-print(f"Anthropic API Key loaded: {'Yes' if api_key['anthropic'] else 'No'}")
-print(f"LlamaCloud API Key loaded: {'Yes' if api_key['llama_cloud'] else 'No'}")
-
 # Events are simple data classes that pass information
 # between workflow steps
 
+selected_llm = Anthropic(model="claude-3-7-sonnet-latest", api_key=api_key["anthropic"])
+
 
 class FirstEvent(Event):
-    first_output: str
+    first_event_output: str
 
 
 class SecondEvent(Event):
@@ -49,7 +49,7 @@ class SecondEvent(Event):
 
 
 class TextEvent(Event):
-    delta: str
+    chunk_of_text_event_gets: str
 
 
 class ProgressEvent(Event):
@@ -117,17 +117,19 @@ class MyWorkflow(Workflow):
     @step
     async def step_one(self, ctx: Context, ev: StartEvent) -> FirstEvent:
         ctx.write_event_to_stream(ProgressEvent(msg="Step one is happening"))
-        return FirstEvent(first_output="First step complete.")
+        return FirstEvent(first_event_output="First step complete.")
 
     @step
     async def step_two(self, ctx: Context, ev: FirstEvent) -> SecondEvent:
-        llm = Anthropic(model="claude-3-7-sonnet-latest", api_key=api_key["anthropic"])
+        llm = selected_llm
         generator = await llm.astream_complete(
             "Please give me the first 50 words of Moby Dick, a book in the public domain."
         )
         async for response in generator:
             # Allow the workflow to stream this piece of response
-            ctx.write_event_to_stream(TextEvent(delta=response.delta))
+            ctx.write_event_to_stream(
+                TextEvent(chunk_of_text_event_gets=response.chunk_of_text_event_gets)
+            )
         return SecondEvent(
             second_output="Second step complete, full response attached",
             response=str(response),
@@ -272,7 +274,7 @@ if __name__ == "__main__":
     print("Index created")
 
     query_engine = index.as_query_engine(
-        llm=Anthropic(model="claude-3-7-sonnet-latest", api_key=api_key["anthropic"]),
+        llm=selected_llm,
         similarity_top_k=5,
     )
 
@@ -316,7 +318,7 @@ if __name__ == "__main__":
 
     agent = FunctionCallingAgent.from_tools(
         tools=[resume_tool],
-        llm=Anthropic(model="claude-3-7-sonnet-latest", api_key=api_key["anthropic"]),
+        llm=selected_llm,
         verbose=True,
     )
     print("Agent set up. Asking a question about the resume")
